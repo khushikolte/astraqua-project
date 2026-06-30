@@ -2,7 +2,19 @@ import os
 import requests
 import streamlit as st
 
-API_BASE_URL = os.environ.get("AQFM_API_URL", "http://localhost:8000")
+
+def _get_api_base_url():
+    # Streamlit Cloud secrets aren't auto-injected into os.environ,
+    # so check st.secrets first, then fall back to env var for local dev.
+    try:
+        if "AQFM_API_URL" in st.secrets:
+            return st.secrets["AQFM_API_URL"]
+    except Exception:
+        pass
+    return os.environ.get("AQFM_API_URL", "http://localhost:8000")
+
+
+API_BASE_URL = _get_api_base_url()
 
 
 @st.cache_data(ttl=2, show_spinner=False)
