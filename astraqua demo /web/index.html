@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AQFM Mission Lab — Wildfire Response</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  :root {
+    --bg: #071018;
+    --panel: rgba(14, 27, 40, 0.82);
+    --panel-2: rgba(17, 34, 49, 0.94);
+    --border: rgba(146, 178, 207, 0.18);
+    --muted: #8ca0b4;
+    --text: #eef6ff;
+    --accent: #4da3ff;
+    --accent-2: #46e0c1;
+    --orange: #ff9f43;
+    --red: #ff5468;
+    --green: #4ed69c;
+    --yellow: #ffd166;
+    --shadow: 0 18px 50px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { overflow-x: hidden; }
+
+  .app {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(77,163,255,.11), transparent 30%),
+      radial-gradient(circle at 87% 15%, rgba(70,224,193,.08), transparent 26%),
+      linear-gradient(180deg, #08121c 0%, #061019 100%);
+    padding: 22px;
+  }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .logo {
+    width: 42px; height: 42px; border-radius: 13px;
+    display: grid; place-items: center;
+    background: linear-gradient(145deg, rgba(77,163,255,.24), rgba(70,224,193,.13));
+    border: 1px solid rgba(137,188,238,.24);
+    box-shadow: inset 0 0 22px rgba(77,163,255,.08);
+    font-weight: 800; letter-spacing: -1px; color: #cfe8ff;
+  }
+  .brand h1 { margin: 0; font-size: 20px; letter-spacing: -.35px; }
+  .brand p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+
+  .top-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    height: 34px; padding: 0 12px; border-radius: 999px;
+    border: 1px solid var(--border); background: rgba(12,25,36,.72);
+    font-size: 12px; color: #c9d7e5;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px rgba(78,214,156,.65); }
+  .btn {
+    border: 1px solid var(--border); color: var(--text); background: rgba(18,34,49,.82);
+    border-radius: 10px; min-height: 38px; padding: 0 14px; cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 650; transition: .18s ease;
+  }
+  .btn:hover { transform: translateY(-1px); border-color: rgba(126,181,234,.45); background: rgba(23,44,62,.95); }
+  .btn.primary { background: linear-gradient(135deg, #2a82d8, #45a0ff); border-color: transparent; box-shadow: 0 8px 25px rgba(77,163,255,.24); }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-bottom: 12px; }
+  .stat { border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; background: linear-gradient(180deg, rgba(18,34,49,.82), rgba(12,25,36,.86)); box-shadow: inset 0 1px 0 rgba(255,255,255,.02); }
+  .stat-label { font-size: 10px; letter-spacing: .95px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+  .stat-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .stat-value { font-size: 25px; line-height: 1; font-weight: 780; letter-spacing: -.6px; }
+  .delta { font-size: 11px; color: var(--green); }
+  .bar { height: 4px; background: rgba(139,169,196,.15); border-radius: 99px; overflow: hidden; margin-top: 12px; }
+  .bar > span { display:block; height:100%; width:72%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: inherit; transition: width .5s ease; }
+
+  .grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(330px, .8fr); gap: 12px; align-items: stretch; }
+  .panel { border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(180deg, rgba(14,27,40,.88), rgba(8,19,28,.92)); box-shadow: var(--shadow); overflow: hidden; }
+  .panel-head { min-height: 52px; display:flex; align-items:center; justify-content:space-between; padding:8px 16px; border-bottom: 1px solid rgba(146,178,207,.12); background: rgba(13,27,39,.65); flex-wrap: wrap; gap: 8px; }
+  .panel-title { display:flex; align-items:center; gap:10px; font-size: 14px; font-weight: 760; }
+  .panel-sub { color: var(--muted); font-size: 11px; }
+
+  .basemap-toggle { display:flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
+  .basemap-toggle button { border:none; background:transparent; color:var(--muted); font-size:11px; font-weight:700; padding:6px 12px; cursor:pointer; }
+  .basemap-toggle button.active { background: linear-gradient(135deg,#2a82d8,#45a0ff); color:#fff; }
+
+  .map-wrap { position: relative; min-height: 560px; overflow: hidden; }
+  #map { position:absolute; inset:0; background:#0b1821; }
+  .map-overlay { position:absolute; inset:0; pointer-events:none; background: radial-gradient(circle at 30% 20%, transparent 0 52%, rgba(4,10,15,.05) 76%, rgba(4,10,15,.35) 100%); z-index: 2; }
+  .legend { position:absolute; top:14px; left:14px; padding:10px 12px; border-radius:12px; border:1px solid var(--border); background: rgba(6,14,21,.78); backdrop-filter: blur(8px); display:flex; gap:12px; font-size:11px; color:#c5d3df; z-index:3; flex-wrap: wrap; max-width: calc(100% - 28px); }
+  .legend-item { display:flex; align-items:center; gap:6px; }
+  .legend-dot { width:8px; height:8px; border-radius:50%; }
+  .status-card { position:absolute; right:14px; top:14px; width:min(300px, calc(100% - 28px)); border:1px solid rgba(77,163,255,.28); border-radius:12px; padding:12px; background: rgba(7,18,27,.83); backdrop-filter: blur(9px); z-index:3; }
+  .status-eyebrow { font-size:10px; letter-spacing:.85px; color:#77baff; text-transform:uppercase; margin-bottom:5px; }
+  .status-main { font-size:13px; font-weight:700; }
+  .status-detail { font-size:11px; color:var(--muted); margin-top:5px; line-height:1.45; }
+  .local-banner { position:absolute; left:50%; bottom:18px; transform:translateX(-50%) translateY(14px); display:flex; align-items:center; gap:9px; padding:10px 14px; border-radius:999px; background: rgba(11,37,49,.9); border:1px solid rgba(70,224,193,.38); color:#cffff5; font-size:12px; font-weight:750; opacity:0; transition:.35s ease; box-shadow: 0 12px 35px rgba(0,0,0,.3), 0 0 30px rgba(70,224,193,.09); z-index: 3; }
+  .local-banner.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  .scenario-badge { position:absolute; left:14px; bottom:14px; padding:6px 10px; border-radius:8px; background:rgba(6,14,21,.78); border:1px solid var(--border); font-size:10px; color:var(--muted); z-index:3; }
+
+  .unit-marker { width:30px; height:30px; border-radius:50%; display:grid; place-items:center; cursor:pointer; font-size:13px; font-weight:800; color:#071018; border:1px solid rgba(255,255,255,.35); box-shadow: 0 0 0 6px rgba(77,163,255,.08); transition: box-shadow .2s ease; }
+  .unit-marker.selected { border-color:#fff; box-shadow: 0 0 0 6px rgba(255,255,255,.16); }
+  .unit-marker.failed { background:#3a2027 !important; color:#ff9aaa; }
+  .unit-label { position:absolute; left:36px; top:6px; font-size:10px; white-space:nowrap; color:rgba(222,237,248,.9); text-shadow: 0 1px 4px rgba(0,0,0,.8); pointer-events:none; }
+  .terrain-label { font-size:11px; color:rgba(200,218,232,.7); text-shadow:0 1px 5px rgba(0,0,0,.9); letter-spacing:.6px; white-space:nowrap; pointer-events:none; }
+
+  .feed { height: 612px; display:flex; flex-direction:column; }
+  .feed-list { padding: 10px; overflow:auto; flex:1; }
+  .event { display:grid; grid-template-columns: 34px 1fr; gap:10px; padding:11px 10px; border-radius:12px; border:1px solid transparent; transition:.2s ease; margin-bottom:6px; }
+  .event:hover { background:rgba(26,45,61,.52); border-color:rgba(141,176,207,.12); }
+  .event-icon { width:32px; height:32px; border-radius:9px; display:grid; place-items:center; font-size:15px; background:rgba(77,163,255,.13); border:1px solid rgba(77,163,255,.18); }
+  .event.warn .event-icon { background:rgba(255,159,67,.12); border-color:rgba(255,159,67,.2); }
+  .event.danger .event-icon { background:rgba(255,84,104,.12); border-color:rgba(255,84,104,.2); }
+  .event-title { font-size:12px; font-weight:720; line-height:1.4; }
+  .event-copy { color:var(--muted); font-size:11px; line-height:1.45; margin-top:3px; }
+  .event-time { color:#70869a; font-size:10px; margin-top:5px; }
+
+  .ask { border-top:1px solid rgba(146,178,207,.12); padding:12px; background:rgba(9,20,29,.6); }
+  .quick-row { display:grid; grid-template-columns: repeat(3,1fr); gap:7px; margin-bottom:8px; }
+  .quick { background:rgba(17,33,47,.84); border:1px solid var(--border); color:#dce8f3; min-height:42px; border-radius:10px; cursor:pointer; font-size:10px; line-height:1.25; padding:7px; }
+  .ask-row { display:flex; gap:8px; }
+  .ask-input { flex:1; min-width:0; border:1px solid var(--border); border-radius:10px; background:rgba(6,15,22,.82); color:#dce9f4; padding:0 12px; outline:none; }
+
+  .lower { display:grid; grid-template-columns: minmax(0,1.65fr) minmax(330px,.8fr); gap:12px; margin-top:12px; }
+  .timeline { padding: 0 14px 10px; max-height: 220px; overflow:auto; }
+  .time-row { display:grid; grid-template-columns:68px 16px 1fr; align-items:center; min-height:36px; border-bottom:1px solid rgba(147,178,205,.11); font-size:11px; }
+  .time { color:#71869a; font-variant-numeric: tabular-nums; }
+  .marker-dot { width:7px; height:7px; border-radius:50%; background:#4da3ff; box-shadow:0 0 12px rgba(77,163,255,.5); }
+  .time-copy { color:#d6e2ec; }
+
+  .controls { padding:14px; }
+  .control-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:9px; }
+  .event-btn { min-height:68px; text-align:left; padding:11px 12px; border-radius:12px; cursor:pointer; color:#f2f7fb; border:1px solid var(--border); background:linear-gradient(180deg,rgba(22,39,54,.9),rgba(13,28,40,.94)); transition:.2s ease; }
+  .event-btn:hover { transform:translateY(-1px); border-color:rgba(108,174,235,.4); }
+  .event-btn strong { display:block; font-size:12px; margin-bottom:4px; }
+  .event-btn span { display:block; color:var(--muted); font-size:10px; line-height:1.35; }
+  .event-btn.danger:hover { border-color:rgba(255,84,104,.55); }
+  .event-btn.warn:hover { border-color:rgba(255,159,67,.55); }
+  .reset-row { display:flex; justify-content:flex-end; margin-top:10px; }
+
+  .toast { position:fixed; right:22px; bottom:22px; z-index:10; width:min(360px, calc(100vw - 44px)); border:1px solid rgba(77,163,255,.25); border-radius:14px; padding:13px 14px; background:rgba(9,21,31,.94); box-shadow:0 18px 50px rgba(0,0,0,.42); backdrop-filter:blur(12px); transform:translateY(25px); opacity:0; pointer-events:none; transition:.28s ease; }
+  .toast.show { transform:translateY(0); opacity:1; }
+  .toast strong { font-size:12px; }
+  .toast p { margin:5px 0 0; color:var(--muted); font-size:11px; line-height:1.45; }
+
+  .maplibregl-ctrl-attrib { font-size: 9px !important; background: rgba(6,14,21,.6) !important; color: #9fb3c4 !important; }
+  .maplibregl-ctrl-attrib a { color: #bcd3e6 !important; }
+  .maplibregl-ctrl-group { background: rgba(9,20,29,.85) !important; border: 1px solid var(--border) !important; }
+  .maplibregl-ctrl-group button span { filter: invert(1) brightness(1.6); }
+
+  @media (max-width: 1000px) {
+    .grid, .lower { grid-template-columns:1fr; }
+    .feed { height:520px; }
+    .stats { grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width: 620px) {
+    .app { padding:12px; }
+    .topbar { align-items:flex-start; gap:12px; }
+    .top-actions .pill { display:none; }
+    .stats { grid-template-columns:1fr 1fr; }
+    .stat { padding:12px; }
+    .stat-value { font-size:21px; }
+    .map-wrap, #map { min-height:460px; height:460px; }
+    .legend { flex-wrap:wrap; right:14px; }
+    .status-card { top:auto; bottom:62px; }
+    .quick-row { grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">AQ</div>
+      <div>
+        <h1>AQFM Mission Lab</h1>
+        <p>Wildfire Response · Simulated mission over real terrain</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="pill"><span class="dot"></span><span id="missionState">Mission stable</span></div>
+      <button class="btn" id="fullscreenBtn">Full screen</button>
+      <button class="btn primary" id="playBtn">Pause mission</button>
+    </div>
+  </header>
+
+  <section class="stats">
+    <div class="stat">
+      <div class="stat-label">Team health</div>
+      <div class="stat-row"><div class="stat-value" id="healthValue">92%</div><div class="delta" id="healthDelta">Nominal</div></div>
+      <div class="bar"><span id="healthBar" style="width:92%"></span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Mission progress</div>
+      <div class="stat-row"><div class="stat-value" id="progressValue">18%</div><div class="delta" id="progressDelta">Advancing</div></div>
+      <div class="bar"><span id="progressBar" style="width:18%"></span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Bandwidth usage</div>
+      <div class="stat-row"><div class="stat-value" id="bandwidthValue">36%</div><div class="delta" id="bandwidthDelta">Normal link</div></div>
+      <div class="bar"><span id="bandwidthBar" style="width:36%"></span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Connected assets</div>
+      <div class="stat-row"><div class="stat-value" id="assetsValue">5 / 5</div><div class="delta" id="assetsDelta">Online</div></div>
+      <div class="bar"><span id="assetsBar" style="width:100%"></span></div>
+    </div>
+  </section>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title"><span>Operational map</span><span class="panel-sub">Click a unit to inspect its role</span></div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="basemap-toggle">
+            <button id="satBtn" class="active">Satellite</button>
+            <button id="osmBtn">Map</button>
+          </div>
+          <div class="panel-sub" id="missionClock">T+ 02:18</div>
+        </div>
+      </div>
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="map-overlay"></div>
+        <div class="legend">
+          <div class="legend-item"><span class="legend-dot" style="background:#ff5468"></span>Active fire</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#ffd166"></span>Containment</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#4da3ff"></span>Air asset</div>
+          <div class="legend-item"><span class="legend-dot" style="background:#4ed69c"></span>Ground asset</div>
+        </div>
+        <div class="status-card">
+          <div class="status-eyebrow">AQFM live decision</div>
+          <div class="status-main" id="decisionMain">Response team is holding the containment line.</div>
+          <div class="status-detail" id="decisionDetail">Recon Drone 1 is tracking the fire edge while engines advance along low-risk corridors.</div>
+        </div>
+        <div class="local-banner" id="localBanner"><span>◆</span> LOCAL INTELLIGENCE ACTIVE</div>
+        <div class="scenario-badge">Simulated scenario · San Bernardino National Forest, CA · imagery &amp; terrain are real, fire and units are synthetic</div>
+      </div>
+    </div>
+
+    <aside class="panel feed">
+      <div class="panel-head">
+        <div class="panel-title">AQFM AI Copilot</div>
+        <div class="panel-sub">Grounded in mission events</div>
+      </div>
+      <div class="feed-list" id="feedList"></div>
+      <div class="ask">
+        <div class="quick-row">
+          <button class="quick" data-q="reroute">Why did the team reroute?</button>
+          <button class="quick" data-q="bandwidth">How is bandwidth managed?</button>
+          <button class="quick" data-q="status">What is the current status?</button>
+        </div>
+        <div class="ask-row">
+          <input id="askInput" class="ask-input" placeholder="Ask AQFM about the mission…" />
+          <button class="btn primary" id="askBtn">Ask</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="lower">
+    <div class="panel">
+      <div class="panel-head">
+        <div class="panel-title">Mission timeline</div>
+        <div class="panel-sub">Latest decisions first</div>
+      </div>
+      <div class="timeline" id="timeline"></div>
+    </div>
+
+    <div class="panel controls">
+      <div class="panel-head" style="padding:0 0 12px; border:none; background:transparent;">
+        <div class="panel-title">Inject event</div>
+        <div class="panel-sub">Test AQFM's autonomy</div>
+      </div>
+      <div class="control-grid">
+        <button class="event-btn warn" data-event="wind"><strong>Wind shift</strong><span>Fire path changes direction</span></button>
+        <button class="event-btn danger" data-event="comms"><strong>Comms blackout</strong><span>Command link is lost</span></button>
+        <button class="event-btn danger" data-event="fault"><strong>Engine 2 fault</strong><span>Pump failure mid-mission</span></button>
+        <button class="event-btn danger" data-event="spot"><strong>Spot fire</strong><span>New ignition ahead of Engine 1</span></button>
+      </div>
+      <div class="reset-row"><button class="btn" id="resetBtn">Reset scenario</button></div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast">
+  <strong id="toastTitle">AQFM answer</strong>
+  <p id="toastCopy"></p>
+</div>
+
+<script>
+(function(){
+  // ---------- Real-world geography (San Bernardino National Forest, CA) ----------
+  const CENTER = [-117.1873, 34.2380];
+  const COMMAND = [-117.1978, 34.2288];
+  const FIRE_CENTER = [-117.1830, 34.2405];
+
+  function metersToDeg(mLon, mLat, lat){
+    const dLat = mLat / 111320;
+    const dLon = mLon / (111320 * Math.cos(lat * Math.PI/180));
+    return [dLon, dLat];
+  }
+
+  const state = { comms:true, local:false, wind:false, spot:false, fault:false, selected:null };
+  let running = true, elapsed = 138, progress = 18;
+
+  const units = [
+    { id:'Recon 1', type:'drone', icon:'▲', color:'#4da3ff', lng:-117.1840, lat:34.2450 },
+    { id:'Recon 2', type:'drone', icon:'▲', color:'#4da3ff', lng:-117.1758, lat:34.2402 },
+    { id:'Engine 1', type:'ground', icon:'■', color:'#4ed69c', lng:-117.1902, lat:34.2338 },
+    { id:'Engine 2', type:'ground', icon:'■', color:'#4ed69c', lng:-117.1850, lat:34.2308 },
+    { id:'Ground Robot', type:'robot', icon:'◆', color:'#46e0c1', lng:-117.1822, lat:34.2318 },
+  ];
+  units.forEach(u => { u.homeLng = u.lng; u.homeLat = u.lat; });
+
+  const feed = [
+    { type:'info', icon:'✦', title:'Mission stabilized', copy:'AQFM is coordinating air and ground assets along the containment line.', time:'02:18' },
+    { type:'info', icon:'↗', title:'Recon Drone 1 repositioned', copy:'The drone moved to the eastern fire edge to improve growth estimation.', time:'02:04' },
+    { type:'info', icon:'✓', title:'Low-risk corridors confirmed', copy:'Ground assets are advancing through routes with reduced heat exposure.', time:'01:47' },
+    { type:'info', icon:'◉', title:'Containment sectors assigned', copy:'Each machine received a local objective and fallback behavior.', time:'01:19' },
+  ];
+  const timelineItems = [
+    ['02:18','Mission stabilized.'],
+    ['02:04','Recon Drone 1 repositioned to monitor fire growth.'],
+    ['01:47','Low-risk travel corridors confirmed.'],
+    ['01:19','Containment sectors distributed to the response team.'],
+    ['00:42','Mission launched with five connected assets.'],
+  ];
+
+  // ---------- Map setup ----------
+  const map = new maplibregl.Map({
+    container: 'map',
+    center: CENTER,
+    zoom: 13.6,
+    pitch: 58,
+    bearing: -12,
+    style: {
+      version: 8,
+      sources: {
+        satellite: {
+          type: 'raster',
+          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+          tileSize: 256,
+          attribution: 'Imagery © Esri, Maxar, Earthstar Geographics'
+        },
+        osm: {
+          type: 'raster',
+          tiles: ['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png','https://b.tile.openstreetmap.org/{z}/{x}/{y}.png','https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          attribution: '© OpenStreetMap contributors'
+        },
+        terrainSource: {
+          type: 'raster-dem',
+          tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          encoding: 'terrarium'
+        }
+      },
+      layers: [
+        { id:'bg', type:'background', paint:{ 'background-color':'#0b1821' } },
+        { id:'basemap-satellite', type:'raster', source:'satellite', layout:{ visibility:'visible' } },
+        { id:'basemap-osm', type:'raster', source:'osm', layout:{ visibility:'none' } },
+        { id:'hillshade', type:'hillshade', source:'terrainSource', paint:{ 'hillshade-exaggeration':.35, 'hillshade-shadow-color':'#0a1a12' } }
+      ],
+      terrain: { source:'terrainSource', exaggeration: 1.3 }
+    }
+  });
+  map.dragRotate.enable();
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch:true }), 'bottom-right');
+
+  map.on('load', () => {
+    try { map.setTerrain({ source:'terrainSource', exaggeration:1.3 }); } catch(e){}
+    try { map.addLayer({ id:'sky', type:'sky', paint:{ 'sky-type':'atmosphere', 'sky-atmosphere-sun-intensity': 8 } }); } catch(e){}
+
+    map.addSource('fire', { type:'geojson', data: { type:'FeatureCollection', features: [] } });
+    map.addLayer({ id:'fire-glow', type:'fill', source:'fire', filter:['==',['get','ring'],'glow'], paint:{ 'fill-color':'#ff7043', 'fill-opacity':.12 } });
+    map.addLayer({ id:'fire-mid', type:'fill', source:'fire', filter:['==',['get','ring'],'mid'], paint:{ 'fill-color':'#ff7043', 'fill-opacity':.22 } });
+    map.addLayer({ id:'fire-core', type:'fill', source:'fire', filter:['==',['get','ring'],'core'], paint:{ 'fill-color':'#ff5468', 'fill-opacity':.4 } });
+    map.addLayer({ id:'fire-outline', type:'line', source:'fire', filter:['==',['get','ring'],'core'], paint:{ 'line-color':'#ff655d', 'line-width':2 } });
+
+    map.addSource('flames', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+    map.addLayer({ id:'flames-layer', type:'circle', source:'flames', paint:{ 'circle-radius':4, 'circle-color':['get','c'], 'circle-opacity':.9 } });
+
+    map.addSource('spot', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+    map.addLayer({ id:'spot-halo', type:'circle', source:'spot', paint:{ 'circle-radius':14, 'circle-color':'#ff5468', 'circle-opacity':.18 } });
+    map.addLayer({ id:'spot-core', type:'circle', source:'spot', paint:{ 'circle-radius':5, 'circle-color':'#ff5468' } });
+    map.addLayer({ id:'spot-label', type:'symbol', source:'spot', layout:{ 'text-field':'SPOT FIRE', 'text-size':10, 'text-offset':[1.1,0], 'text-anchor':'left', 'text-font':['Open Sans Regular'] }, paint:{ 'text-color':'#ffadb7' } });
+
+    map.addSource('containment', { type:'geojson', data:{ type:'Feature', geometry:{ type:'LineString', coordinates:[
+      [-117.1900,34.2360],[-117.1868,34.2372],[-117.1838,34.2373],[-117.1808,34.2368],[-117.1778,34.2358]
+    ] } } });
+    map.addLayer({ id:'containment-line', type:'line', source:'containment', paint:{ 'line-color':'#ffd166', 'line-width':3, 'line-dasharray':[2,1.4] } });
+
+    map.addSource('comms', { type:'geojson', data:{ type:'FeatureCollection', features:[] } });
+    map.addLayer({ id:'comms-line', type:'line', source:'comms', paint:{ 'line-color': ['get','c'], 'line-width':1.4, 'line-dasharray':[2,2.4], 'line-opacity':.75 } });
+
+    const commandEl = document.createElement('div');
+    commandEl.className = 'unit-marker';
+    commandEl.style.background = '#4da3ff';
+    commandEl.style.width = '22px'; commandEl.style.height = '22px'; commandEl.style.fontSize='10px';
+    commandEl.textContent = '◉';
+    new maplibregl.Marker({ element: commandEl }).setLngLat(COMMAND).addTo(map);
+    const cmdLabel = document.createElement('div');
+    cmdLabel.className = 'terrain-label'; cmdLabel.textContent = 'COMMAND / BASE CAMP';
+    new maplibregl.Marker({ element: cmdLabel, anchor:'left', offset:[16,0] }).setLngLat(COMMAND).addTo(map);
+
+    [
+      [[-117.1970,34.2470],'RIDGE LINE'],
+      [[-117.2020,34.2360],'CANYON'],
+      [[-117.1793,34.2373],'CONTAINMENT LINE'],
+    ].forEach(([coord,label]) => {
+      const el = document.createElement('div');
+      el.className = 'terrain-label'; el.textContent = label;
+      new maplibregl.Marker({ element: el, anchor:'left' }).setLngLat(coord).addTo(map);
+    });
+
+    units.forEach(u => {
+      const wrap = document.createElement('div');
+      wrap.style.position = 'relative';
+      const el = document.createElement('div');
+      el.className = 'unit-marker';
+      el.style.background = u.color;
+      el.textContent = u.icon;
+      const label = document.createElement('div');
+      label.className = 'unit-label';
+      label.textContent = u.id;
+      wrap.appendChild(el); wrap.appendChild(label);
+      el.addEventListener('click', () => selectUnit(u));
+      u.marker = new maplibregl.Marker({ element: wrap, anchor:'center' }).setLngLat([u.lng,u.lat]).addTo(map);
+      u.el = el;
+    });
+
+    updateFireGeometry();
+    updateComms();
+    renderFeed(); renderTimeline(); updateStats();
+    startLoops();
+  });
+
+  function selectUnit(u){
+    state.selected = u.id;
+    units.forEach(x => x.el && x.el.classList.toggle('selected', x.id === u.id));
+    setDecision(`${u.type==='drone'?'Air':u.type==='robot'?'Ground robot':'Ground'} asset selected`, `${u.id} is executing a local objective and sharing only mission-critical status updates.`);
+  }
+
+  // ---------- Fire geometry ----------
+  function ring(rMeters, wobbleAmp, t, tag, windOn){
+    const pts = 26; const coords = [];
+    const cLat = FIRE_CENTER[1];
+    for(let i=0;i<=pts;i++){
+      const a = (i/pts) * Math.PI * 2;
+      const wobble = 1 + Math.sin(a*5 + t*.0015)*.12 + Math.sin(a*9 - t*.001)*.06;
+      const stretch = windOn ? (1 + Math.max(0, Math.cos(a))*.55) : 1;
+      const rx = rMeters * wobble * stretch;
+      const ry = rMeters * wobble * (windOn ? .82 : 1);
+      const [dLon, dLat] = metersToDeg(Math.cos(a)*rx, Math.sin(a)*ry, cLat);
+      const shiftLon = windOn ? metersToDeg(180,0,cLat)[0] : 0;
+      coords.push([FIRE_CENTER[0] + dLon + shiftLon, FIRE_CENTER[1] + dLat]);
+    }
+    return { type:'Feature', properties:{ ring: tag }, geometry:{ type:'Polygon', coordinates:[coords] } };
+  }
+
+  function updateFireGeometry(){
+    const t = performance.now();
+    const src = map.getSource('fire');
+    if(!src) return;
+    src.setData({ type:'FeatureCollection', features:[
+      ring(150, 12, t, 'glow', state.wind),
+      ring(105, 10, t, 'mid', state.wind),
+      ring(70, 8, t, 'core', state.wind),
+    ]});
+
+    const cLat = FIRE_CENTER[1];
+    const shiftLon = state.wind ? metersToDeg(180,0,cLat)[0] : 0;
+    const flameFeatures = [];
+    for(let i=0;i<16;i++){
+      const a = (i/16)*Math.PI*2 + Math.sin(i*8.1)*.2;
+      const rx = 55 + (i%5)*14; const ry = 38 + (i%4)*9;
+      const stretch = state.wind ? (1 + Math.max(0,Math.cos(a))*.5) : 1;
+      const [dLon, dLat] = metersToDeg(Math.cos(a)*rx*stretch, Math.sin(a)*ry, cLat);
+      flameFeatures.push({ type:'Feature', properties:{ c: i%2 ? '#ff9f43' : '#ff5468' }, geometry:{ type:'Point', coordinates:[FIRE_CENTER[0]+dLon+shiftLon, FIRE_CENTER[1]+dLat] } });
+    }
+    map.getSource('flames').setData({ type:'FeatureCollection', features: flameFeatures });
+
+    const spotCoord = [-117.1758, 34.2362];
+    map.getSource('spot').setData({ type:'FeatureCollection', features: state.spot ? [{ type:'Feature', geometry:{ type:'Point', coordinates: spotCoord } }] : [] });
+  }
+
+  function updateComms(){
+    const active = units.filter(u => !(state.fault && u.id==='Engine 2'));
+    const features = [];
+    if(state.comms){
+      active.forEach(u => {
+        features.push({ type:'Feature', properties:{ c:'#4da3ff' }, geometry:{ type:'LineString', coordinates:[COMMAND, [u.lng,u.lat]] } });
+      });
+    } else {
+      for(let i=0;i<active.length;i++){
+        const a = active[i], b = active[(i+1)%active.length];
+        features.push({ type:'Feature', properties:{ c:'#46e0c1' }, geometry:{ type:'LineString', coordinates:[[a.lng,a.lat],[b.lng,b.lat]] } });
+      }
+    }
+    const src = map.getSource('comms');
+    if(src) src.setData({ type:'FeatureCollection', features });
+  }
+
+  // ---------- Unit movement ----------
+  function targetFor(u){
+    if(state.wind && u.id==='Recon 1') return [-117.1740, 34.2450];
+    if(state.wind && u.id==='Engine 1') return [-117.1858, 34.2352];
+    if(state.spot && u.id==='Recon 2') return [-117.1770, 34.2372];
+    if(state.fault && u.id==='Ground Robot') return [-117.1850, 34.2308];
+    return [u.homeLng, u.homeLat];
+  }
+
+  function moveUnits(dt){
+    units.forEach((u, idx) => {
+      if(state.fault && u.id==='Engine 2') return;
+      const [tlng, tlat] = targetFor(u);
+      const dLng = tlng - u.lng, dLat = tlat - u.lat;
+      const dist = Math.hypot(dLng, dLat);
+      if(dist > 0.00004){
+        u.lng += dLng * 1.6 * dt; u.lat += dLat * 1.6 * dt;
+      } else {
+        const phase = performance.now()*.0002 + idx;
+        u.lng += Math.cos(phase)*.0000006*dt*60; u.lat += Math.sin(phase)*.0000004*dt*60;
+      }
+      u.marker.setLngLat([u.lng, u.lat]);
+      const failed = state.fault && u.id==='Engine 2';
+      u.el.classList.toggle('failed', failed);
+      u.el.textContent = failed ? '×' : u.icon;
+    });
+  }
+
+  // ---------- Loops ----------
+  let last = performance.now();
+  let wobbleAcc = 0;
+  function startLoops(){
+    requestAnimationFrame(frame);
+  }
+  function frame(t){
+    const dt = Math.min(40, t-last)/1000; last = t;
+    if(running){
+      elapsed += dt;
+      progress = Math.min(96, progress + dt*.9);
+      moveUnits(dt);
+    }
+    wobbleAcc += dt*1000;
+    if(wobbleAcc > 130){
+      wobbleAcc = 0;
+      updateFireGeometry();
+      updateComms();
+    }
+    updateClock(); updateStats();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- Feed / timeline / toast (unchanged behavior) ----------
+  function addFeed(type,icon,title,copy){ feed.unshift({type,icon,title,copy,time:formatTime(elapsed)}); renderFeed(); }
+  function renderFeed(){
+    const el=document.getElementById('feedList');
+    el.innerHTML=feed.slice(0,8).map(e=>`<div class="event ${e.type}"><div class="event-icon">${e.icon}</div><div><div class="event-title">${e.title}</div><div class="event-copy">${e.copy}</div><div class="event-time">T+ ${e.time}</div></div></div>`).join('');
+  }
+  function renderTimeline(){
+    document.getElementById('timeline').innerHTML=timelineItems.slice(0,9).map((i,idx)=>`<div class="time-row"><div class="time">T+ ${i[0]}</div><div class="marker-dot" style="background:${idx===0?'#4da3ff':'#385b75'}"></div><div class="time-copy">${i[1]}</div></div>`).join('');
+  }
+  function addTimeline(copy){ timelineItems.unshift([formatTime(elapsed),copy]); renderTimeline(); }
+  function formatTime(s){ const m=Math.floor(s/60), sec=Math.floor(s%60); return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`; }
+
+  function setDecision(title,main,detail){
+    if(detail===undefined){ detail = main; main = title; }
+    document.getElementById('decisionMain').textContent=main;
+    document.getElementById('decisionDetail').textContent=detail;
+    showToast(title,detail);
+  }
+  function showToast(title,copy){
+    const toast=document.getElementById('toast');
+    document.getElementById('toastTitle').textContent=title;
+    document.getElementById('toastCopy').textContent=copy;
+    toast.classList.add('show'); clearTimeout(showToast.timer); showToast.timer=setTimeout(()=>toast.classList.remove('show'),4300);
+  }
+
+  function handleEvent(type){
+    if(type==='wind'){
+      state.wind=true;
+      addFeed('warn','↝','Wind shift detected','The projected fire path moved toward the ridge line. AQFM recalculated retardant and ground-asset trajectories.');
+      addTimeline('Wind shift detected; response geometry recalculated.');
+      setDecision('Wind response','AQFM is moving coverage ahead of the new fire path.','Recon Drone 1 is shifting east while Engine 1 takes a lower-risk approach to preserve the containment line.');
+      document.getElementById('missionState').textContent='Adapting to wind shift';
+    }
+    if(type==='comms'){
+      state.comms=false; state.local=true;
+      document.getElementById('localBanner').classList.add('show');
+      addFeed('danger','⌁','Command link lost','The response team fell back to local coordination. Only critical status deltas are queued for synchronization.');
+      addTimeline('Communication blackout detected; local intelligence activated.');
+      setDecision('Disconnected operation','Mission continues without cloud or command input.','AQFM created a local mesh, preserved each machine’s objective, and reduced bandwidth usage to critical updates only.');
+      document.getElementById('missionState').textContent='Operating locally';
+    }
+    if(type==='fault'){
+      state.fault=true;
+      addFeed('danger','!','Engine 2 pump fault','AQFM isolated Engine 2, cleared the nearby area, and reassigned its containment sector.');
+      addTimeline('Engine 2 fault isolated; sector redistributed.');
+      setDecision('Fault response','Engine 2 has been removed from the active plan.','The Ground Robot and Engine 1 are absorbing its sector while Recon Drone 2 verifies that no gap is forming.');
+      document.getElementById('missionState').textContent='Degraded but stable';
+    }
+    if(type==='spot'){
+      state.spot=true;
+      addFeed('danger','●','New spot fire detected','AQFM stopped Engine 1 short of the flare-up and redirected Recon Drone 2 to estimate growth.');
+      addTimeline('Spot fire detected ahead of Engine 1.');
+      setDecision('Spot-fire response','AQFM is protecting the response team from the new ignition.','Engine 1 is rerouting around the flare-up while Recon Drone 2 measures growth and updates the containment plan.');
+      document.getElementById('missionState').textContent='New hazard detected';
+    }
+  }
+  document.querySelectorAll('[data-event]').forEach(b=>b.addEventListener('click',()=>handleEvent(b.dataset.event)));
+
+  document.getElementById('resetBtn').addEventListener('click',()=>{
+    state.comms=true; state.local=false; state.wind=false; state.spot=false; state.fault=false; state.selected=null;
+    units.forEach(u => { u.lng=u.homeLng; u.lat=u.homeLat; u.marker && u.marker.setLngLat([u.lng,u.lat]); u.el && u.el.classList.remove('selected','failed'); });
+    elapsed=138; progress=18;
+    feed.splice(0,feed.length,
+      {type:'info',icon:'✦',title:'Mission stabilized',copy:'AQFM is coordinating air and ground assets along the containment line.',time:'02:18'},
+      {type:'info',icon:'↗',title:'Recon Drone 1 repositioned',copy:'The drone moved to the eastern fire edge to improve growth estimation.',time:'02:04'},
+      {type:'info',icon:'✓',title:'Low-risk corridors confirmed',copy:'Ground assets are advancing through routes with reduced heat exposure.',time:'01:47'},
+      {type:'info',icon:'◉',title:'Containment sectors assigned',copy:'Each machine received a local objective and fallback behavior.',time:'01:19'}
+    );
+    timelineItems.splice(0,timelineItems.length,
+      ['02:18','Mission stabilized.'],['02:04','Recon Drone 1 repositioned to monitor fire growth.'],['01:47','Low-risk travel corridors confirmed.'],['01:19','Containment sectors distributed to the response team.'],['00:42','Mission launched with five connected assets.']
+    );
+    renderFeed();renderTimeline();
+    document.getElementById('localBanner').classList.remove('show');
+    document.getElementById('missionState').textContent='Mission stable';
+    setDecision('Scenario reset','Response team is holding the containment line.','Recon Drone 1 is tracking the fire edge while engines advance along low-risk corridors.');
+    updateFireGeometry(); updateComms();
+  });
+
+  document.getElementById('playBtn').addEventListener('click',e=>{ running=!running; e.target.textContent=running?'Pause mission':'Resume mission'; });
+  document.getElementById('fullscreenBtn').addEventListener('click',()=>{ document.documentElement.requestFullscreen?.(); });
+  document.addEventListener('fullscreenchange', () => setTimeout(()=>map.resize(), 60));
+  window.addEventListener('resize', () => map.resize());
+
+  document.getElementById('satBtn').addEventListener('click', () => {
+    map.setLayoutProperty('basemap-satellite','visibility','visible');
+    map.setLayoutProperty('basemap-osm','visibility','none');
+    document.getElementById('satBtn').classList.add('active');
+    document.getElementById('osmBtn').classList.remove('active');
+  });
+  document.getElementById('osmBtn').addEventListener('click', () => {
+    map.setLayoutProperty('basemap-satellite','visibility','none');
+    map.setLayoutProperty('basemap-osm','visibility','visible');
+    document.getElementById('osmBtn').classList.add('active');
+    document.getElementById('satBtn').classList.remove('active');
+  });
+
+  function answer(kind){
+    const answers={
+      reroute:'The projected fire path changed, so AQFM recomputed local risk and shifted each machine toward a safe corridor without waiting for a central command.',
+      bandwidth: state.comms?'The current link is healthy. AQFM still sends compact mission-state updates instead of full raw sensor streams.':'During the blackout, AQFM keeps decisions local and queues only critical state changes for later synchronization.',
+      status: state.fault?'The mission is degraded but stable. Engine 2 is isolated and its sector has been redistributed.':state.comms?'The mission is stable with all five assets connected.':'The mission is stable in disconnected mode using local coordination.'
+    };
+    addFeed('info','AI','AQFM answer',answers[kind]||'AQFM is using verified mission events to explain the current state and the reason behind each autonomous decision.');
+  }
+  document.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>answer(b.dataset.q)));
+  document.getElementById('askBtn').addEventListener('click',()=>{ const v=document.getElementById('askInput').value.trim(); if(!v)return; answer(v.toLowerCase().includes('band')?'bandwidth':v.toLowerCase().includes('status')?'status':'reroute'); document.getElementById('askInput').value=''; });
+  document.getElementById('askInput').addEventListener('keydown',e=>{ if(e.key==='Enter')document.getElementById('askBtn').click(); });
+
+  function updateClock(){ document.getElementById('missionClock').textContent=`T+ ${formatTime(elapsed)}`; }
+  function updateStats(){
+    const health=state.fault?72:state.wind?86:92;
+    const bw=state.comms?36:10;
+    const assets=state.fault?'4 / 5':'5 / 5';
+    setText('healthValue',`${health}%`);setWidth('healthBar',health);
+    setText('healthDelta',state.fault?'Degraded':'Nominal');
+    setText('progressValue',`${Math.round(progress)}%`);setWidth('progressBar',progress);
+    setText('bandwidthValue',`${bw}%`);setWidth('bandwidthBar',bw);
+    setText('bandwidthDelta',state.comms?'Normal link':'Critical deltas only');
+    setText('assetsValue',assets);setWidth('assetsBar',state.fault?80:100);
+    setText('assetsDelta',state.fault?'1 isolated':'Online');
+  }
+  function setText(id,v){ const e=document.getElementById(id); if(e.textContent!==String(v))e.textContent=v; }
+  function setWidth(id,v){ document.getElementById(id).style.width=`${v}%`; }
+})();
+</script>
+</body>
+</html>

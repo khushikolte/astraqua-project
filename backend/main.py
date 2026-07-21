@@ -1,12 +1,17 @@
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 MODEL_DIR = os.environ.get("AQFM_MODEL_DIR", "models")
+
+# backend/main.py -> repo root -> web/  (override with AQFM_WEB_DIR if you host it elsewhere)
+WEB_DIR = Path(os.environ.get("AQFM_WEB_DIR", Path(__file__).resolve().parent.parent / "web"))
 
 MODEL_FILES = {
     "gps_lost": "gps_lost.pt",
@@ -48,6 +53,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve the mission lab simulator (web/index.html) at /simulator.
+# Same origin as this API, so no CORS/keys needed for the map to call /predict/*.
+if WEB_DIR.exists():
+    app.mount("/simulator", StaticFiles(directory=str(WEB_DIR), html=True), name="simulator")
+else:
+    print(f"[startup] AQFM_WEB_DIR not found, skipping /simulator mount: {WEB_DIR}")
 
 
 class FleetState(BaseModel):
